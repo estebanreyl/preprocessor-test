@@ -1,4 +1,14 @@
 
+# Testing framework for alias
+This is a partial construction of acr-builder to be relied upon for cleaner testing of Yaml alias
+additions. This will serve a support role string parsing related testing.
+
+To use: Include inside of GOPATH\Go\src\github.com\Azure This folder should also have acr-builder
+in order to provide support for their interdependence. In general this project should be essentially
+analogous and save for preprocessor-test.go and test_frame.go could be directly copy pasted into 
+acr-builder in order to transfer the work carried out which can the be git commited.
+
+
 # Task Yaml alias additions
 
 We have been discussing how to facilitate and improve on existing task yaml capabilities. In particular by
@@ -73,3 +83,4 @@ Example org-defaults.yaml:
     singularity: mcr.microsoft.com/acr-task-commands/singularity-builder:3.3
     pack: 'mcr.microsoft.com/azure-task-commands/buildpack:latest pack'
 ```
+
