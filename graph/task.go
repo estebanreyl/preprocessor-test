@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"runtime"
 	"strings"
-	"bytes"
 
 	"github.com/Azure/acr-builder/scan"
 	"github.com/Azure/acr-builder/secretmgmt"
@@ -59,12 +58,6 @@ type Task struct {
 	RegistryLoginCredentials RegistryLoginCredentials
 	Dag                      *Dag
 	IsBuildTask              bool // Used to skip the default network creation for build.
-}
-
-// PreTask intermediate step for processing before complete unmarshall
-type PreTask struct {
-	AliasSrc  []*string         `yaml:"alias-src"`
-	AliasMap map[string]string `yaml:"alias"`
 }
 
 // UnmarshalTaskFromString unmarshals a Task from a raw string.
@@ -129,62 +122,13 @@ func NewTaskFromString(data string) (*Task, error) {
 
 // NewTaskFromBytes unmarshals a Task from given bytes without any initialization.
 func NewTaskFromBytes(data []byte) (*Task, error) {
-	preTask := &PreTask{}
-
-	if err := yaml.Unmarshal(data, preTask); err != nil {
-		// return preTask, err // Cant return preTask
-	}
-	
-	// Need to somehow read in the files associated with the Task TODO
-	str := string(data[:])
-	var buffer bytes.Buffer
-	directive := '$'
-	command := ""
-	ongoing_cmd := false
-	for _, char := range str{
-		if ongoing_cmd {
-			//Maybe just checking if non alphanumeric, only allow alpha numeric aliases?
-			if strings.Contains(")}/ .,;]&|'~\n\t", string(char)) { // Delineates the end of an alias
-				buffer.WriteString(preTask.AliasMap[command])
-				if char != directive {
-					ongoing_cmd = false
-					buffer.WriteString(string(char))
-				} 
-				command = ""
-			} else {
-				command += string(char)
-			}
-		}else if char == directive {
-
-			if ongoing_cmd { // Escape character triggered
-				buffer.WriteString(string(directive))
-				ongoing_cmd = false
-				continue
-			}
-
-			ongoing_cmd = true
-			continue
-		}else {
-			buffer.WriteString(string(char))
-		}
-	}
-
-	
-	//s := string(data[:])
-	fmt.Println(buffer.String())
-
-
-	// var aliases = make(map[string]int)
-
-	// for i := 0; i < len(preTask.AliasList); i++{
-	// 	// Check if alias has
-	// 	aliases[preTask.AliasList[i].alias] := preTask.AliasList[i].match
-	// }
-	// Second pass through these to redefine values in the header?
-	// Should probably analyze them as they go, detect $
-
+	post, err := PreprocessBytes (data);
 	t := &Task{}
-	if err := yaml.Unmarshal([]byte(buffer.String()), t); err != nil {
+
+	if err != nil {
+		return t, err
+	}
+	if err := yaml.Unmarshal(post, t); err != nil {
 		return t, err
 	}
 	return t, t.Validate()
@@ -474,7 +418,3 @@ func ResolveCustomRegistryCredentials(ctx context.Context, credentials []*Regist
 // }
 // func resolvePreTask(pre PreTask) (*Task, error) {
 
-// }
-// }
-// }
-// }
