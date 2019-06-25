@@ -8,7 +8,7 @@ import (
 func main() {
 	// Backwards Compatibility
 	fmt.Println("Reading in acb.yaml - Backwards compatibility")
-	graph.TestFile("examples/acb.yaml")
+	graph.TestFile("input/simple_alias.yaml")
 	fmt.Println("Test Completed")
 
 	//-------- String Testing --------

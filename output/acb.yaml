@@ -1,0 +1,61 @@
+# root -> puller
+#      -> C -> B
+#      -> build-qux -> build-foo -> build-qaz
+#      -> build-bar
+stepTimeout: 600
+version: v1.0.0
+
+env:
+  - "foo=taskEnv"
+
+steps:
+  - id: puller
+    cmd: azure/images/docker pull ubuntu
+    entryPoint: someEntryPoint
+    env: [eric=foo, foo=bar]
+    exitedWithout: [0, 255]
+    workingDirectory: pullDir
+    retries: 5
+    retryDelay: 90
+    pull: true
+
+  - id: build-qux
+    cmd: 'azure/images/acr-builder build -f Dockerfile https://github.com/ehotinger/qux --cache-from=ubuntu'
+    when: ["-"]
+    detach: true
+    startDelay: 50
+
+  - id: C
+    cmd: blah
+    when: ["-"]
+    ports:
+      - "8000:8000"
+      - "8080:8080"
+    expose:
+      - "80"
+      - "81"
+    exitedWith: [0, 1, 2, 3, 4]
+    keep: true
+    isolation: default
+
+  - id: build-bar
+    cmd: azure/images/acr-builder build -f Dockerfile https://github.com/ehotinger/bar --cache-from=ubuntu
+    when: ["-"]
+
+  - id: B
+    when: [C]
+    cmd: azure/images/git clone https://github.com/ehotinger/clone
+    ignoreErrors: true
+    disableWorkingDirectoryOverride: true
+
+  - id: build-foo
+    cmd: azure/images/acr-builder build -f Dockerfile https://github.com/ehotinger/foo --cache-from=ubuntu
+    env: ["eric=foo"]
+    when: [build-qux]
+
+  - id: build-qaz
+    build: "-f Dockerfile https://github.com/ehotinger/qaz --cache-from=ubuntu"
+    privileged: true
+    user: root
+    network: "host"
+    repeat: 2
