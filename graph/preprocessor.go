@@ -7,24 +7,29 @@ import (
 	"errors"
 	"strings"
 	"fmt"
+	"regexp"
 	yaml "gopkg.in/yaml.v2"
 )
 
 var (
-	errImproperAlias = errors.New("Alias can only use alphanumeric characters")
-	errMissingAlias  = errors.New("No alias was specified")
-	errMissingMatch  = errors.New("Match for Alias may not be empty")
-	errUnknownAlias  = errors.New("Unknown Alias")
+	errImproperAlias = errors.New("alias can only use alphanumeric characters")
+	errMissingAlias  = errors.New("no alias was specified")
+	errMissingMatch  = errors.New("match for Alias may not be empty")
+	errUnknownAlias  = errors.New("unknown Alias")
+	directive = '$'
 )
+
 
 // PreTask intermediate step for processing before complete unmarshall
 type PreTask struct {
 	AliasSrc []*string         `yaml:"alias-src"`
-	AliasMap map[string]string `yaml:"alias"`
+	AliasMap yaml.MapSlice     `yaml:"alias"`
+	resolvedMap map[string]string
 }
 
-// // Validate validates the step and returns an error if the Step has problems.
-// func (a *Alias) Validate() error {
+// Validate validates the step and returns an error if the Step has problems.
+// func (PreTask preTask) Validate() error {
+	
 // 	if a == nil {
 // 		return nil
 // 	}
@@ -33,6 +38,24 @@ type PreTask struct {
 // 	}
 // 	return nil
 // }
+
+func (PreTask preTask) resolveMapAndValidate() error {
+	for _, item := range preTask.AliasMap {
+		if  re := regexp.MustCompile
+
+
+		value := item.Value
+		var err error
+		if (value.Contains(directive)) {
+			value, err = PreprocessString(preTask, value)	/// Check for errors	
+			if err != nil {
+				return err
+			}
+		}
+		preTask.resolvedMap[item.Key] = value
+	}
+	return nil
+}
 
 // // Equals determines whether or not two steps are equal.
 // func (a *Alias) Equals(t *Alias) bool {
@@ -47,31 +70,30 @@ type PreTask struct {
 // 	// 	a.val[0] == t.val[0]
 // }
 
-func PreprocessBytes(data []byte) ([]byte, error) {
-	preTask := &PreTask{}
-
-	if err := yaml.Unmarshal(data, preTask); err != nil {
-		return nil, err
-	}
-
+func PreprocessString(preTask PreTask, string str) (string, error) {
 	// Need to somehow read in the files associated with the Task TODO
 	var out strings.Builder
-	directive := '$'
 	var command strings.Builder
 	ongoing_cmd := false
 
 	// Search and Replace
-	str := string(data[:])
 	for _, char := range str {
 		if ongoing_cmd {
 			//Maybe just checking if non alphanumeric, only allow alpha numeric aliases?
 			if strings.Contains(")}/ .,;]&|'~\n\t", string(char)) { // Delineates the end of an alias
-				out.WriteString(preTask.AliasMap[command.String()])
+				resolvedCommand, commandPresent := preTask.resolvedMap[command.String()]
+				if !commandPresent {
+					return nil, errUnknownAlias
+				}
+
+				out.WriteString(resolvedCommand)
+
 				if char != directive {
 					ongoing_cmd = false
 					out.WriteRune(char)
 				}
 				command.Reset()
+
 			} else {
 				command.WriteRune(char)
 			}
@@ -89,8 +111,23 @@ func PreprocessBytes(data []byte) ([]byte, error) {
 			out.WriteRune(char)
 		}
 	}
+
+	return out.String(), nil
+
+}
+
+func PreprocessBytes(data []byte) ([]byte, error) {
+	preTask := &PreTask{}
+
+	if err := yaml.Unmarshal(data, preTask); err != nil {
+		return preTask, err
+	}
+
+	// Search and Replace
+	str := string(data[:])
+
 	fmt.Printf(out.String())
-	return []byte(out.String()), nil
+	return []byte(PreprocessString(preTask, str)), nil
 
 	// var aliases = make(map[string]int)a
 

@@ -8,9 +8,11 @@ alias-src:
   - some_other.yaml
 
 alias:
-  registry : {{.Run.Registry}}
-  commit : {{.Run.Commit}}
-  id : {{.Run.ID}}
+  registry : '{{.Run.Registry}}'
+  commit : '{{.Run.Commit}}'
+  id : '{{.Run.ID}}'
+  az : 'azure....'
+  easypush : $az img1
   bar : https://github.com/ehotinger/bar
   qux : https://github.com/ehotinger/qux
 
