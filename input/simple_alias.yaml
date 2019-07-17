@@ -4,8 +4,8 @@
 #      -> build-bar
 
 alias-src:
-  - global_src.yaml
-  - some_other.yaml
+  - input/global_src.yaml
+  - input/some_other.yaml
 
 alias:
   registry : "{{.Run.Registry}}"

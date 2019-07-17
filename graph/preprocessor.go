@@ -5,9 +5,12 @@ package graph
 
 import (
 	"errors"
-	yaml "gopkg.in/yaml.v2"
-	"strings"
+	"io/ioutil"
 	"net/http"
+	"strings"
+	"time"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -43,21 +46,22 @@ type PreTask struct {
 func (preTask *PreTask) loadExternalAlias() error {
 	// Iterating in reverse to easily and efficiently handle hierarchy. The later
 	// declared the higher in the hierarchy of alias definitions.
-	for i := len(preTask.AliasSrc)-1; i >= 0; i-- {
-		aliasUri := preTask.AliasSrc[i]
-		
+	for i := len(preTask.AliasSrc) - 1; i >= 0; i-- {
+		aliasURI := *preTask.AliasSrc[i]
+
 		// Need to determine if aliasFile is a local file or a network resource.
 		// Include http?
-		if (err := addAliasFromFile(PreTask, aliasUri); err != nil) {
-			return err;
+		if err := addAliasFromFile(preTask, aliasURI); err != nil {
+			return err
 		}
 	}
+	return nil
 }
 
 /* Fetches and Parses out remote alias files and adds their content
-  to the passed in PreTask. Note alias definitions already in preTask
-  will not be overwritten. */
-func addAliasFromRemote (preTask *PreTask, url string) error {
+to the passed in PreTask. Note alias definitions already in preTask
+will not be overwritten. */
+func addAliasFromRemote(preTask *PreTask, url string) error {
 	remoteClient := http.Client{
 		Timeout: time.Second * 2, // Maximum of 2 secs
 	}
@@ -72,49 +76,52 @@ func addAliasFromRemote (preTask *PreTask, url string) error {
 		return getErr
 	}
 
-	body, readErr := ioutil.ReadAll(res.Body)
+	data, readErr := ioutil.ReadAll(res.Body)
 	if readErr != nil {
 		return readErr
 	}
 
-	return readAliasFromBytes (data, preTask)
+	return readAliasFromBytes(data, preTask)
 }
 
 /* Parses out local alias files and adds their content to the passed in
-   PreTask. Note alias definitions already in preTask will not be 
+   PreTask. Note alias definitions already in preTask will not be
    overwritten. */
-func addAliasFromFile (preTask *PreTask, fileUri string) error {
-	
-	data, fileReadingError := ioutil.ReadFile(fileUri)
-	if (fileReadingError) {
+func addAliasFromFile(preTask *PreTask, fileURI string) error {
+
+	data, fileReadingError := ioutil.ReadFile(fileURI)
+	if fileReadingError != nil {
 		return fileReadingError
 	}
-	return readAliasFromBytes (data, preTask)
+	return readAliasFromBytes(data, preTask)
 }
 
 /* Parses out alias  definitions from a given bytes array and appends
    them to the PreTask. Note alias definitions already in preTask will
    not be overwritten even if present in the array. */
-func readAliasFromBytes (data []byte, preTask *PreTask) error {
+func readAliasFromBytes(data []byte, preTask *PreTask) error {
 
 	aliasMap := &map[string]string{}
 
-	if err := yaml.Unmarshal(data, fileAliasMap); err != nil {
+	if err := yaml.Unmarshal(data, aliasMap); err != nil {
 		return err
 	}
 
-	for key, value := range aliasMap { 
-        if (!preTask.aliasMap.Contains(key)) {
-			preTask.aliasMap[key] = value;
+	for key, value := range *aliasMap {
+		if _, ok := preTask.AliasMap[key]; !ok {
+			preTask.AliasMap[key] = value
+
 		}
 	}
 	return nil
 }
 
-// Handles preprocessing of a string values
+// PreprocessString handles managing alias definitions from a provided string definitions expected to be in JSON format.
 func PreprocessString(preTask *PreTask, str string) (string, error) {
 	// Load Remote/Local alias definitions
-	preTask.loadExternalAlias()
+	if externalDefinitionErr := preTask.loadExternalAlias(); externalDefinitionErr != nil {
+		return "", externalDefinitionErr
+	}
 	//preTask.loadGlobalDefinitions TODO?
 	var out strings.Builder
 	var command strings.Builder
@@ -163,7 +170,7 @@ func PreprocessBytes(data []byte) ([]byte, error) {
 	preTask := &PreTask{}
 
 	if err := yaml.Unmarshal(data, preTask); err != nil {
-		return preTask, err
+		return nil, err
 	}
 
 	// Search and Replace
