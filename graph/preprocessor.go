@@ -1,12 +1,24 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
+/* Alias preprocessor:
+* The set of elements here are meant to process the alias definition portion of task.yaml
+* files. This is done by unmarshaling these elements which will then be added in a hierarchical
+* manner. Note the input must still be valid Yaml.
+*
+* Existing issues: Once the preTask is parsed out and the definitions are resolved, the read in
+* yaml will be processed to include the appropriate aliases, however this will include the previously
+* parsed in definitions which is not as efficient.
+*
+ */
+
 package graph
 
 import (
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -14,45 +26,59 @@ import (
 )
 
 var (
-	errImproperAlias = errors.New("alias can only use alphanumeric characters")
-	errMissingAlias  = errors.New("no alias was specified")
-	errMissingMatch  = errors.New("match for Alias may not be empty")
-	errUnknownAlias  = errors.New("unknown Alias")
-	directive        = '$'
+	errImproperAlias             = errors.New("alias can only use alphanumeric characters")
+	errMissingAlias              = errors.New("no alias was specified")
+	errMissingMatch              = errors.New("match for Alias may not be empty")
+	errUnknownAlias              = errors.New("unknown Alias")
+	errImproperDirectiveOverload = errors.New("$ directive can only be overwritten by a single character")
+	errImproperKeyName           = errors.New("alias key names only support alphanumeric characters and _ , - , ! characters")
+	directive                    = '$'
 )
 
 // PreTask intermediate step for processing before complete unmarshall
 type PreTask struct {
-	AliasSrc []*string         `yaml:"alias-src"`
-	AliasMap map[string]string `yaml:"alias"`
+	AliasSrc  []*string         `yaml:"alias-src"`
+	AliasMap  map[string]string `yaml:"alias"`
+	directive rune
 }
 
-//func (PreTask preTask) resolveMapAndValidate() error {
-// for _, item := range preTask.AliasMap {
-// 	if  re := regexp.MustCompile
+// Prevents recursive definitions from occuring
+func (preTask *PreTask) resolveMapAndValidate() error {
+	//Set directive from Map
+	preTask.directive = directive
+	if _, ok := preTask.AliasMap[string(directive)]; ok {
+		if len(preTask.AliasMap[string(directive)]) != 1 {
+			return errImproperDirectiveOverload
+		}
+		preTask.directive = rune(preTask.AliasMap[string(directive)][0])
+	}
+	// Values may support all characters, no escaping and so forth necessary
+	for key := range preTask.AliasMap {
+		matched, err := regexp.MatchString("\\A[a-z, A-Z, 0-9, _,-,!]+\\z", key)
+		if err != nil {
+			return err
+		}
+		if !matched {
+			return errImproperKeyName
+		}
+	}
+	return nil
+}
 
-// 	value := item.Value
-// 	var err error
-// 	if (value.Contains(directive)) {
-// 		value, err = PreprocessString(preTask, value)	/// Check for errors
-// 		if err != nil {
-// 			return err
-// 		}
-// 	}
-// 	preTask.resolvedMap[item.Key] = value
-// }
-// return nil
-
+/* Loads in all Aliases defined as being a part of external resources. */
 func (preTask *PreTask) loadExternalAlias() error {
 	// Iterating in reverse to easily and efficiently handle hierarchy. The later
 	// declared the higher in the hierarchy of alias definitions.
 	for i := len(preTask.AliasSrc) - 1; i >= 0; i-- {
 		aliasURI := *preTask.AliasSrc[i]
-
-		// Need to determine if aliasFile is a local file or a network resource.
-		// Include http?
-		if err := addAliasFromFile(preTask, aliasURI); err != nil {
-			return err
+		if strings.HasPrefix(aliasURI, "https://") || strings.HasPrefix(aliasURI, "http://") { // Rewrite in nice case insensitive regex
+			if err := addAliasFromRemote(preTask, aliasURI); err != nil {
+				return err
+			}
+		} else {
+			if err := addAliasFromFile(preTask, aliasURI); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -110,7 +136,6 @@ func readAliasFromBytes(data []byte, preTask *PreTask) error {
 	for key, value := range *aliasMap {
 		if _, ok := preTask.AliasMap[key]; !ok {
 			preTask.AliasMap[key] = value
-
 		}
 	}
 	return nil
@@ -118,11 +143,16 @@ func readAliasFromBytes(data []byte, preTask *PreTask) error {
 
 // PreprocessString handles managing alias definitions from a provided string definitions expected to be in JSON format.
 func PreprocessString(preTask *PreTask, str string) (string, error) {
+	//preTask.loadGlobalDefinitions TODO?
+
 	// Load Remote/Local alias definitions
 	if externalDefinitionErr := preTask.loadExternalAlias(); externalDefinitionErr != nil {
 		return "", externalDefinitionErr
 	}
-	//preTask.loadGlobalDefinitions TODO?
+	//Validate alias definitions
+	if improperFormatErr := preTask.resolveMapAndValidate(); improperFormatErr != nil {
+		return "", improperFormatErr
+	}
 	var out strings.Builder
 	var command strings.Builder
 	ongoingCmd := false
@@ -138,7 +168,7 @@ func PreprocessString(preTask *PreTask, str string) (string, error) {
 				}
 
 				out.WriteString(resolvedCommand)
-				if char != directive {
+				if char != preTask.directive {
 					ongoingCmd = false
 					out.WriteRune(char)
 				}
@@ -147,10 +177,10 @@ func PreprocessString(preTask *PreTask, str string) (string, error) {
 			} else {
 				command.WriteRune(char)
 			}
-		} else if char == directive {
+		} else if char == preTask.directive {
 
 			if ongoingCmd { // Escape character triggered
-				out.WriteRune(directive)
+				out.WriteRune(preTask.directive)
 				ongoingCmd = false
 				continue
 			}

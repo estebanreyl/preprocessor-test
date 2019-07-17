@@ -4,7 +4,7 @@
 #      -> build-bar
 
 alias-src:
-  - input/global_src.yaml
+  - https://raw.githubusercontent.com/estebanreyl/preprocessor-test/master/input/global_src.yaml
   - input/some_other.yaml
 
 alias:
