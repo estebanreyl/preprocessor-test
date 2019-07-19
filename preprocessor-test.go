@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+
 	"github.com/Azure/acr-builder-preprocessor/graph"
 )
 
@@ -26,5 +27,3 @@ func main() {
 	//File Nested definitions
 	//File all combined
 }
-
-

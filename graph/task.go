@@ -124,7 +124,7 @@ func NewTaskFromString(data string) (*Task, error) {
 func NewTaskFromBytes(data []byte) (*Task, error) {
 	t := &Task{}
 
-	post, err2 := PreprocessBytes(data)
+	post, err2 := preprocessBytes(data)
 	if err2 != nil {
 		return t, err2
 	}

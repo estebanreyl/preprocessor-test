@@ -5,10 +5,9 @@ import (
 	"fmt"
 )
 
+// TestFile for correctness with the provided acb.yaml
+func TestFile(src string) {
 
-// Tests for correctness with the provided acb.yaml
-func TestFile(src string){
-	
 	task, err := UnmarshalTaskFromFile(gocontext.Background(), src, nil)
 	if err != nil {
 		fmt.Println("Failed to create task from file. Err: %v", err)
