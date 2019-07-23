@@ -12,7 +12,6 @@
 *
 * TODO:
 * Add some form of default global alias mapping
-*
  */
 
 package graph
@@ -39,8 +38,8 @@ var (
 
 // Alias intermediate step for processing before complete unmarshall
 type Alias struct {
-	AliasSrc  []*string         `yaml:"alias-src"`
-	AliasMap  map[string]string `yaml:"alias"`
+	AliasSrc  []*string         `yaml:"src"`
+	AliasMap  map[string]string `yaml:"values"`
 	directive rune
 }
 
@@ -64,7 +63,7 @@ func (alias *Alias) resolveMapAndValidate() error {
 	for key := range alias.AliasMap {
 		matched := re.MatchString(key)
 
-		if !matched {
+		if !matched && key != string(directive) {
 			return errImproperKeyName
 		}
 	}
@@ -201,11 +200,14 @@ func preprocessString(alias *Alias, str string) (string, error) {
 
 // PreprocessBytes Handles byte encoded data that can be parsed through pre processing
 func preprocessBytes(data []byte) ([]byte, error) {
-	alias := &Alias{}
-
-	if err := yaml.Unmarshal(data, alias); err != nil {
+	type Wrapper struct {
+		Alias Alias `yaml:"alias,omitempty"`
+	}
+	wrap := &Wrapper{}
+	if err := yaml.Unmarshal(data, wrap); err != nil {
 		return nil, err
 	}
+	alias := &wrap.Alias
 
 	if alias.AliasMap == nil && alias.AliasSrc == nil {
 		return data, nil
@@ -215,4 +217,16 @@ func preprocessBytes(data []byte) ([]byte, error) {
 	str := string(data)
 	parsedStr, err := preprocessString(alias, str)
 	return []byte(parsedStr), err
+}
+
+//processSteps Will resolve image names in steps that are aliased without using $
+// This should be invoked before resolving $ ?
+func processSteps(alias Alias, task Task) {
+	for i, step := range task.Steps {
+		parts := strings.Split(step.Cmd, " ")
+		if _, ok := alias.AliasMap[parts[0]]; ok {
+			parts[0] = alias.AliasMap[parts[0]]
+			task.Steps[i].Cmd = strings.Join(parts, " ")
+		}
+	}
 }
