@@ -200,21 +200,41 @@ func preprocessString(alias *Alias, str string) (string, error) {
 
 // PreprocessBytes Handles byte encoded data that can be parsed through pre processing
 func preprocessBytes(data []byte) ([]byte, error) {
-	type Wrapper struct {
-		Alias Alias `yaml:"alias,omitempty"`
-	}
-	wrap := &Wrapper{}
-	if err := yaml.Unmarshal(data, wrap); err != nil {
+	//
+	config := make(yaml.MapSlice, 0)
+
+	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, err
 	}
-	alias := &wrap.Alias
+
+	alias := &Alias{}
+	for i, val := range config {
+		if val.Key == "alias" {
+			aliasData, errMarshal := yaml.Marshal(val.Value)
+			if errMarshal != nil {
+				return nil, errMarshal
+			}
+
+			errUnmarshal := yaml.Unmarshal(aliasData, alias)
+			if errUnmarshal != nil {
+				return nil, errUnmarshal
+			}
+			config = append(config[:i], config[i+1:]...)
+			break
+		}
+	}
+
+	dataNoAlias, errMarshal := yaml.Marshal(config)
+	if errMarshal != nil {
+		return nil, errMarshal
+	}
 
 	if alias.AliasMap == nil && alias.AliasSrc == nil {
 		return data, nil
 	}
 
 	// Search and Replace
-	str := string(data)
+	str := string(dataNoAlias)
 	parsedStr, err := preprocessString(alias, str)
 	return []byte(parsedStr), err
 }
@@ -230,3 +250,26 @@ func processSteps(alias Alias, task Task) {
 		}
 	}
 }
+
+// //UnmarshallYAML
+// func (alias Alias) UnmarshalYAML(unmarshal func(interface{}) error) error {
+// 	//var mapa map[string]interface{}
+// 	type Aliass struct {
+// 		AliasSrc  []*string         `yaml:"src"`
+// 		AliasMap  map[string]string `yaml:"values"`
+// 		directive rune
+// 	}
+// 	a := &Aliass{}
+// 	b := unmarshal(a)
+// 	fmt.Print(b)
+// 	return nil
+// }
+
+// func customUnmarshall() {
+// 	config := make(yaml.MapSlice, 0)
+// 	err := yaml.Unmarshal([]byte(data), &config)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// }
