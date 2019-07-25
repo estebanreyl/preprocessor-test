@@ -23,7 +23,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
+	"fmt"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -200,28 +200,23 @@ func preprocessString(alias *Alias, str string) (string, error) {
 
 // PreprocessBytes Handles byte encoded data that can be parsed through pre processing
 func preprocessBytes(data []byte) ([]byte, error) {
-	//
-	config := make(yaml.MapSlice, 0)
-
+	var config map[string]interface{}
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, err
 	}
-
 	alias := &Alias{}
-	for i, val := range config {
-		if val.Key == "alias" {
-			aliasData, errMarshal := yaml.Marshal(val.Value)
-			if errMarshal != nil {
-				return nil, errMarshal
-			}
-
-			errUnmarshal := yaml.Unmarshal(aliasData, alias)
-			if errUnmarshal != nil {
-				return nil, errUnmarshal
-			}
-			config = append(config[:i], config[i+1:]...)
-			break
+	_, ok := config["alias"]
+	fmt.Print(config)
+	if ok {
+		aliasData, errMarshal := yaml.Marshal(config["alias"])
+		if errMarshal != nil {
+			return nil, errMarshal
 		}
+		errUnMarshal := yaml.Unmarshal(aliasData, alias)
+		if errUnMarshal != nil {
+			return nil, errUnMarshal
+		}
+		delete(config, "alias")
 	}
 
 	dataNoAlias, errMarshal := yaml.Marshal(config)
