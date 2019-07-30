@@ -23,7 +23,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"fmt"
+
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -199,72 +199,52 @@ func preprocessString(alias *Alias, str string) (string, error) {
 }
 
 // PreprocessBytes Handles byte encoded data that can be parsed through pre processing
-func preprocessBytes(data []byte) ([]byte, error) {
+func preprocessBytes(data []byte) ([]byte, Alias, error) {
 	var config map[string]interface{}
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, err
-	}
 	alias := &Alias{}
+
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return nil, Alias{}, err
+	}
+
+	// Removes alias portion from input file string
 	_, ok := config["alias"]
-	fmt.Print(config)
 	if ok {
 		aliasData, errMarshal := yaml.Marshal(config["alias"])
 		if errMarshal != nil {
-			return nil, errMarshal
+			return nil, Alias{}, errMarshal
 		}
 		errUnMarshal := yaml.Unmarshal(aliasData, alias)
 		if errUnMarshal != nil {
-			return nil, errUnMarshal
+			return nil, *alias, errUnMarshal
 		}
 		delete(config, "alias")
 	}
 
 	dataNoAlias, errMarshal := yaml.Marshal(config)
 	if errMarshal != nil {
-		return nil, errMarshal
+		return nil, *alias, errMarshal
 	}
 
 	if alias.AliasMap == nil && alias.AliasSrc == nil {
-		return data, nil
+		return data, *alias, nil
 	}
 
 	// Search and Replace
 	str := string(dataNoAlias)
 	parsedStr, err := preprocessString(alias, str)
-	return []byte(parsedStr), err
+	return []byte(parsedStr), *alias, err
 }
 
-//processSteps Will resolve image names in steps that are aliased without using $
-// This should be invoked before resolving $ ?
-func processSteps(alias Alias, task Task) {
+// processSteps Will resolve image names in steps that are aliased without using $.
+// Invoked after resolving $
+func processSteps(alias *Alias, task *Task) {
 	for i, step := range task.Steps {
 		parts := strings.Split(step.Cmd, " ")
 		if _, ok := alias.AliasMap[parts[0]]; ok {
+			// Image name should always go first
 			parts[0] = alias.AliasMap[parts[0]]
 			task.Steps[i].Cmd = strings.Join(parts, " ")
 		}
 	}
 }
-
-// //UnmarshallYAML
-// func (alias Alias) UnmarshalYAML(unmarshal func(interface{}) error) error {
-// 	//var mapa map[string]interface{}
-// 	type Aliass struct {
-// 		AliasSrc  []*string         `yaml:"src"`
-// 		AliasMap  map[string]string `yaml:"values"`
-// 		directive rune
-// 	}
-// 	a := &Aliass{}
-// 	b := unmarshal(a)
-// 	fmt.Print(b)
-// 	return nil
-// }
-
-// func customUnmarshall() {
-// 	config := make(yaml.MapSlice, 0)
-// 	err := yaml.Unmarshal([]byte(data), &config)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// }

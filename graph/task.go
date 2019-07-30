@@ -124,13 +124,17 @@ func NewTaskFromString(data string) (*Task, error) {
 func NewTaskFromBytes(data []byte) (*Task, error) {
 	t := &Task{}
 
-	post, err2 := preprocessBytes(data)
-	if err2 != nil {
-		return t, err2
+	post, alias, aliasErr := preprocessBytes(data)
+	if aliasErr != nil {
+		return t, aliasErr
 	}
+
 	if err := yaml.Unmarshal(post, t); err != nil {
 		return t, err
 	}
+
+	processSteps(&alias, t)
+
 	return t, t.Validate()
 }
 
