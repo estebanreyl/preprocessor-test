@@ -162,10 +162,9 @@ func preprocessString(alias *Alias, str string) (string, error) {
 	var command strings.Builder
 	ongoingCmd := false
 
-	// Search and Replace
+	// Search and Replace all strings with $
 	for _, char := range str {
 		if ongoingCmd {
-			//Maybe just checking if non alphanumeric, only allow alpha numeric aliases?
 			if matched := re.MatchString(string(char)); !matched { // Delineates the end of an alias
 				resolvedCommand, commandPresent := alias.AliasMap[command.String()]
 				if !commandPresent {

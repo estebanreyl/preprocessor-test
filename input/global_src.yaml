@@ -1,2 +1,2 @@
-name: "estebanreyl"
-prune : "some magic"
+qux : https://github.com/ehotinger/qux
+acb : "azure/images/acr-builder"
